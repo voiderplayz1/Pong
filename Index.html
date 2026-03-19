@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Untitled - Paint</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        /* MS Paint / Win95 Aesthetic */
+        body {
+            background-color: #ffffff;
+            font-family: 'Comic Sans MS', 'Arial', sans-serif; /* Paint vibe */
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 600px;
+            border: 2px solid #000;
+            padding: 10px;
+            box-shadow: 4px 4px 0px #888;
+        }
+        .panel { display: none; }
+        .active { display: block; }
+        
+        /* UI Elements */
+        input, button {
+            border: 2px solid #000;
+            padding: 5px;
+            margin: 5px 0;
+            font-family: inherit;
+        }
+        button {
+            background-color: #c0c0c0;
+            cursor: pointer;
+            box-shadow: inset 1px 1px #fff, inset -1px -1px #000;
+        }
+        button:active {
+            box-shadow: inset 1px 1px #000, inset -1px -1px #fff;
+        }
+        
+        /* Chat Box */
+        #chat-box {
+            height: 300px;
+            border: 2px solid #000;
+            overflow-y: scroll;
+            margin-bottom: 10px;
+            padding: 5px;
+            background: #fff;
+        }
+        .message { margin-bottom: 5px; word-wrap: break-word; }
+        .system { color: #888; font-style: italic; }
+        
+        /* Inconspicuous Emergency Button */
+        #emergency-btn {
+            position: fixed;
+            top: 5px;
+            right: 5px;
+            width: 15px;
+            height: 15px;
+            background-color: #000;
+            border: none;
+            cursor: pointer;
+            box-shadow: none;
+        }
+    </style>
+</head>
+<body>
+
+    <button id="emergency-btn" onclick="emergencyLeave()" title="Leave"></button>
+
+    <div class="container">
+        <div id="setup-panel" class="panel active">
+            <h2>Canvas Setup</h2>
+            <input type="text" id="username-input" placeholder="Enter Username (Required)" required><br>
+            <input type="text" id="room-code-input" placeholder="4-Letter Code (e.g. ABCD)" maxlength="4"><br>
+            <button onclick="hostRoom()">Host Room</button>
+            <button onclick="joinRoom()">Join Room</button>
+            <p id="status-msg" class="system"></p>
+        </div>
+
+        <div id="chat-panel" class="panel">
+            <h3 id="room-header">Room: </h3>
+            <div id="chat-box"></div>
+            <input type="text" id="message-input" placeholder="Type a message..." style="width: 70%;">
+            <button onclick="sendMessage()">Send</button>
+            <input type="file" id="file-input" style="font-size: 12px; max-width: 100%;">
+        </div>
+    </div>
+
+    <script>
+        let peer = null;
+        let conn = null;
+        let myUsername = "";
+        const prefix = "paintchat-secret-"; // Prevents random people from guessing the 4 letters
+
+        // --- Navigation ---
+        function showPanel(panelId) {
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            document.getElementById(panelId).classList.add('active');
+        }
+
+        // --- Emergency Leave ---
+        function emergencyLeave() {
+            if (peer) peer.destroy(); // Instantly severs the P2P connection
+            window.location.replace("https://www.google.com"); // Redirects immediately
+        }
+
+        // --- Logging ---
+        function logMessage(msg, type = 'system', sender = '') {
+            const box = document.getElementById('chat-box');
+            const div = document.createElement('div');
+            div.className = 'message ' + type;
+            if (type === 'text') {
+                div.innerHTML = `<strong>${sender}:</strong> ${msg}`;
+            } else {
+                div.innerText = msg;
+            }
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        // --- Validation ---
+        function validateSetup() {
+            myUsername = document.getElementById('username-input').value.trim();
+            const code = document.getElementById('room-code-input').value.trim().toUpperCase();
+            if (!myUsername || code.length !== 4) {
+                document.getElementById('status-msg').innerText = "Please enter a username and a 4-letter code.";
+                return null;
+            }
+            return code;
+        }
+
+        // --- P2P Host Logic ---
+        function hostRoom() {
+            const code = validateSetup();
+            if (!code) return;
+
+            document.getElementById('status-msg').innerText = "Creating canvas...";
+            peer = new Peer(prefix + code); // Set specific ID
+
+            peer.on('open', (id) => {
+                showPanel('chat-panel');
+                document.getElementById('room-header').innerText = "Canvas: " + code + " (Waiting for friend...)";
+            });
+
+            peer.on('connection', (connection) => {
+                conn = connection;
+                setupConnection();
+            });
+
+            peer.on('error', (err) => {
+                document.getElementById('status-msg').innerText = "Error: Room might already exist.";
+            });
+        }
+
+        // --- P2P Join Logic ---
+        function joinRoom() {
+            const code = validateSetup();
+            if (!code) return;
+
+            document.getElementById('status-msg').innerText = "Finding canvas...";
+            peer = new Peer(); // Random ID for joiner
+
+            peer.on('open', (id) => {
+                conn = peer.connect(prefix + code);
+                conn.on('open', () => {
+                    showPanel('chat-panel');
+                    document.getElementById('room-header').innerText = "Canvas: " + code;
+                    setupConnection();
+                    // Send initial username
+                    conn.send({ type: 'system', content: `${myUsername} joined the canvas.` });
+                });
+            });
+
+            peer.on('error', (err) => {
+                document.getElementById('status-msg').innerText = "Error connecting to room.";
+            });
+        }
+
+        // --- Handle Connection Data ---
+        function setupConnection() {
+            conn.on('data', (data) => {
+                if (data.type === 'text') {
+                    logMessage(data.content, 'text', data.user);
+                } else if (data.type === 'system') {
+                    logMessage(data.content);
+                }
+            });
+
+            conn.on('close', () => {
+                logMessage("Connection lost. The other user left.");
+            });
+        }
+
+        // --- Send Message ---
+        function sendMessage() {
+            const input = document.getElementById('message-input');
+            const msg = input.value.trim();
+            if (msg && conn && conn.open) {
+                conn.send({ type: 'text', user: myUsername, content: msg });
+                logMessage(msg, 'text', myUsername);
+                input.value = '';
+            }
+        }
+
+        // Allow 'Enter' key to send messages
+        document.getElementById('message-input').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') sendMessage();
+        });
+    </script>
+</body>
+</html>
