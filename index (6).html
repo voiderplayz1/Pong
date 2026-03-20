@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>PaintChat 🎨</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<style>
+/* ─── RESET ─────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --gray:#c0c0c0;--dark:#808080;--white:#ffffff;
+  --teal:#008080;--navy:#000080;--btn-face:#d4d0c8;
+}
+body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:#fff;min-height:100vh;font-size:14px;color:#000;overflow:hidden;}
+
+/* ─── WIN95 BASE ─────────────────────────────────── */
+.win-window{background:var(--btn-face);border:2px solid;border-color:#fff #808080 #808080 #fff;box-shadow:2px 2px 0 #000;}
+.win-titlebar{background:linear-gradient(to right,#000080,#1084d0);color:#fff;font-weight:bold;font-size:12px;padding:4px 8px;display:flex;align-items:center;justify-content:space-between;user-select:none;gap:6px;}
+.win-titlebar-btns{display:flex;gap:2px;}
+.tbar-btn{width:16px;height:14px;background:var(--btn-face);border:1px solid;border-color:#fff #808080 #808080 #fff;font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#000;}
+.tbar-btn:active{border-color:#808080 #fff #fff #808080;}
+.win-btn{display:inline-block;background:var(--btn-face);border:2px solid;border-color:#fff #808080 #808080 #fff;padding:5px 14px;cursor:pointer;font-size:13px;font-family:inherit;min-width:76px;text-align:center;user-select:none;white-space:nowrap;}
+.win-btn:hover{background:#e8e4de;}
+.win-btn:active{border-color:#808080 #fff #fff #808080;padding:6px 13px 4px 15px;}
+.win-btn.primary{font-weight:bold;border-color:#fff #000 #000 #fff;}
+.win-input{background:#fff;border:2px solid;border-color:#808080 #fff #fff #808080;padding:5px 7px;font-size:13px;font-family:inherit;outline:none;width:100%;}
+.win-input:focus{outline:1px dotted #000;outline-offset:-2px;}
+.inset{border:2px solid;border-color:#808080 #fff #fff #808080;background:#fff;}
+.divider{border:none;border-top:1px solid #808080;border-bottom:1px solid #fff;margin:6px 0;}
+.btn-row{display:flex;gap:8px;justify-content:center;}
+.field-label{font-size:12px;font-weight:bold;margin-bottom:4px;}
+
+/* ─── SCREENS ────────────────────────────────────── */
+.screen{display:none;}
+.screen.active{display:flex;}
+
+/* ─── SETUP SCREEN ───────────────────────────────── */
+#setupScreen{min-height:100vh;background:var(--teal);align-items:center;justify-content:center;padding:20px;}
+.setup-window{width:100%;max-width:420px;}
+.setup-body{padding:16px;display:flex;flex-direction:column;gap:10px;}
+.setup-body p{font-size:12px;line-height:1.6;color:#444;}
+.setup-body a{color:#000080;}
+#configTA{width:100%;height:100px;border:2px solid;border-color:#808080 #fff #fff #808080;padding:6px;font-family:'Courier New',monospace;font-size:11px;resize:vertical;outline:none;}
+.setup-hint{font-size:11px;color:#666;background:#fff;border:1px solid #ccc;padding:6px 8px;line-height:1.7;}
+.setup-hint code{background:#eee;padding:1px 3px;font-family:monospace;}
+
+/* ─── LOGIN SCREEN ───────────────────────────────── */
+#loginScreen{min-height:100vh;background:var(--teal);align-items:center;justify-content:center;padding:20px;}
+.login-window{width:100%;max-width:340px;}
+.login-body{padding:16px;display:flex;flex-direction:column;gap:12px;}
+.avatar-picker{display:flex;align-items:center;gap:12px;}
+.avatar-preview{width:56px;height:56px;border:2px solid;border-color:#808080 #fff #fff #808080;background:#fff;display:flex;align-items:center;justify-content:center;font-size:30px;cursor:pointer;overflow:hidden;flex-shrink:0;}
+.avatar-preview img{width:100%;height:100%;object-fit:cover;}
+
+/* ─── LOBBY SCREEN ───────────────────────────────── */
+#lobbyScreen{min-height:100vh;background:var(--teal);align-items:center;justify-content:center;padding:20px;}
+.lobby-window{width:100%;max-width:330px;}
+.lobby-body{padding:16px;display:flex;flex-direction:column;gap:12px;}
+.room-code-display{background:#fff;border:2px solid;border-color:#808080 #fff #fff #808080;text-align:center;padding:14px;font-size:38px;font-weight:bold;letter-spacing:12px;font-family:'Courier New',monospace;color:#000080;}
+.status-hint{font-size:12px;color:#555;text-align:center;margin-top:4px;}
+
+/* ─── CHAT SCREEN ────────────────────────────────── */
+#chatScreen{height:100vh;width:100%;flex-direction:column;overflow:hidden;background:#fff;}
+.chat-titlebar{background:#000080;color:#fff;padding:0 8px;height:28px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;font-size:12px;font-weight:bold;}
+.chat-title-left{display:flex;align-items:center;gap:8px;}
+.host-badge{font-size:10px;background:#fff;color:#000080;padding:1px 5px;border:1px solid #aaa;}
+
+/* ─── EMERGENCY LEAVE ────────────────────────────── */
+#emergencyBtn{background:#000;color:#000;border:1px solid #111;width:22px;height:20px;cursor:pointer;font-size:1px;flex-shrink:0;}
+#emergencyBtn:hover{background:#0a0a0a;}
+
+/* ─── TOOLBAR ────────────────────────────────────── */
+.chat-toolbar{background:var(--btn-face);border-bottom:2px solid #808080;padding:3px 5px;display:flex;align-items:center;gap:3px;flex-shrink:0;flex-wrap:wrap;}
+.tool-btn{background:var(--btn-face);border:2px solid;border-color:#fff #808080 #808080 #fff;padding:2px 7px;cursor:pointer;font-size:12px;white-space:nowrap;font-family:inherit;}
+.tool-btn:active{border-color:#808080 #fff #fff #808080;}
+.tool-btn.active-vc{background:#b8ddb8;border-color:#808080 #fff #fff #808080;}
+.toolbar-sep{width:1px;background:#808080;height:18px;margin:0 3px;}
+#fileProgressText{font-size:11px;color:#000080;font-weight:bold;}
+#connStatus{font-size:11px;color:#444;}
+
+/* ─── CHAT MAIN ──────────────────────────────────── */
+.chat-main{flex:1;display:flex;overflow:hidden;}
+#usersPanel{width:108px;flex-shrink:0;background:var(--btn-face);border-right:2px solid #808080;display:flex;flex-direction:column;}
+.users-title{font-size:11px;font-weight:bold;padding:4px 6px;background:#000080;color:#fff;flex-shrink:0;}
+#usersList{flex:1;overflow-y:auto;padding:4px;}
+.user-item{display:flex;align-items:center;gap:5px;padding:3px 4px;font-size:11px;border-bottom:1px dotted #aaa;}
+.user-avatar-sm{width:22px;height:22px;border:1px solid #808080;background:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;overflow:hidden;}
+.user-avatar-sm img{width:100%;height:100%;object-fit:cover;}
+.user-vc-icon{font-size:9px;color:#006600;}
+
+#messagesArea{flex:1;overflow-y:auto;padding:8px;background:#fff;border:2px solid;border-color:#808080 #fff #fff #808080;margin:4px;}
+
+/* ─── MESSAGES ───────────────────────────────────── */
+.msg{display:flex;gap:8px;margin-bottom:10px;align-items:flex-start;}
+.msg-avatar{width:32px;height:32px;border:1px solid #808080;background:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;overflow:hidden;}
+.msg-avatar img{width:100%;height:100%;object-fit:cover;}
+.msg-body{flex:1;min-width:0;}
+.msg-header{display:flex;align-items:baseline;gap:8px;margin-bottom:2px;}
+.msg-username{font-weight:bold;font-size:13px;}
+.msg-time{font-size:11px;color:#666;}
+.msg-content{font-size:13px;word-break:break-word;white-space:pre-wrap;line-height:1.5;}
+.msg-actions{display:none;gap:4px;margin-top:4px;}
+.msg:hover .msg-actions{display:flex;}
+.msg-action-btn{font-size:10px;background:var(--btn-face);border:1px solid #808080;cursor:pointer;padding:1px 6px;font-family:inherit;}
+.msg-action-btn:hover{background:#fff;}
+.msg.system{justify-content:center;margin:4px 0;}
+.msg.system .sys-text{font-style:italic;color:#555;font-size:12px;background:#f0f0f0;padding:2px 14px;border:1px solid #ccc;}
+.msg-gif img{max-width:220px;max-height:180px;display:block;margin-top:4px;border:1px solid #ccc;}
+.msg-file{display:flex;align-items:center;gap:8px;background:#f0f0f0;border:2px solid;border-color:#fff #808080 #808080 #fff;padding:6px 10px;margin-top:4px;cursor:pointer;max-width:280px;}
+.msg-file:hover{background:#e8e4de;}
+.file-icon-lg{font-size:22px;}
+.file-info{font-size:11px;}
+.file-name{font-weight:bold;word-break:break-all;}
+.file-size{color:#666;margin-top:1px;}
+.msg-edited{font-size:10px;color:#888;font-style:italic;}
+.msg-deleted{color:#999;font-style:italic;font-size:12px;}
+
+/* ─── INPUT AREA ─────────────────────────────────── */
+.chat-input-area{background:var(--btn-face);border-top:2px solid #fff;padding:6px;flex-shrink:0;}
+.input-row{display:flex;gap:4px;align-items:flex-end;}
+#msgInput{flex:1;min-height:34px;max-height:100px;resize:none;background:#fff;border:2px solid;border-color:#808080 #fff #fff #808080;padding:5px 7px;font-family:inherit;font-size:13px;outline:none;overflow-y:auto;}
+.input-side{display:flex;gap:3px;align-items:flex-end;flex-shrink:0;}
+.icon-btn{background:var(--btn-face);border:2px solid;border-color:#fff #808080 #808080 #fff;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;}
+.icon-btn:active{border-color:#808080 #fff #fff #808080;}
+#sendBtn{background:var(--btn-face);border:2px solid;border-color:#fff #808080 #808080 #fff;padding:5px 14px;cursor:pointer;font-size:13px;font-family:inherit;font-weight:bold;height:34px;}
+#sendBtn:active{border-color:#808080 #fff #fff #808080;}
+.status-bar{background:var(--btn-face);border-top:1px solid #808080;padding:2px 8px;font-size:11px;color:#444;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* ─── VC PANEL ───────────────────────────────────── */
+#vcPanel{position:absolute;bottom:80px;right:8px;width:320px;max-width:calc(100vw - 16px);background:var(--btn-face);border:2px solid;border-color:#fff #808080 #808080 #fff;box-shadow:3px 3px 0 #000;z-index:100;display:none;flex-direction:column;}
+#vcPanel.open{display:flex;}
+#vcPanel.minimized #vcGrid,#vcPanel.minimized .vc-controls{display:none;}
+.vc-title{flex-shrink:0;}
+#vcGrid{display:flex;flex-wrap:wrap;gap:3px;padding:5px;background:#1a1a1a;max-height:220px;overflow-y:auto;}
+.vc-tile{position:relative;background:#000;flex:1;min-width:130px;}
+.vc-tile video{width:100%;height:90px;object-fit:cover;display:block;background:#111;}
+.vc-tile-label{position:absolute;bottom:2px;left:3px;font-size:10px;color:#fff;background:rgba(0,0,0,.6);padding:1px 5px;}
+.vc-controls{display:flex;gap:4px;padding:5px;flex-wrap:wrap;border-top:1px solid #808080;}
+.vc-btn{flex:1;min-width:60px;background:var(--btn-face);border:2px solid;border-color:#fff #808080 #808080 #fff;padding:4px 6px;cursor:pointer;font-size:11px;font-family:inherit;text-align:center;white-space:nowrap;}
+.vc-btn:active{border-color:#808080 #fff #fff #808080;}
+.vc-btn.muted{background:#ffcccc;}
+.vc-btn.off{background:#ffcccc;}
+.vc-btn.sharing{background:#ccffcc;}
+.vc-btn.danger{background:#cc0000;color:#fff;border-color:#fff #800 #800 #fff;}
+
+/* ─── EMOJI PANEL ────────────────────────────────── */
+#emojiPanel{display:none;position:fixed;bottom:68px;left:4px;right:4px;background:var(--btn-face);border:2px solid;border-color:#fff #808080 #808080 #fff;z-index:200;max-height:230px;flex-direction:column;box-shadow:3px 3px 0 #000;}
+#emojiPanel.open{display:flex;}
+.emoji-tabs{display:flex;border-bottom:1px solid #808080;background:var(--btn-face);overflow-x:auto;flex-shrink:0;scrollbar-width:thin;}
+.emoji-tab{padding:3px 9px;cursor:pointer;font-size:15px;border:none;background:transparent;border-right:1px solid #999;white-space:nowrap;flex-shrink:0;}
+.emoji-tab.active{background:#fff;}
+.emoji-grid{flex:1;overflow-y:auto;padding:6px;display:flex;flex-wrap:wrap;gap:2px;}
+.emoji-btn{font-size:21px;cursor:pointer;padding:3px;border:1px solid transparent;background:transparent;line-height:1;}
+.emoji-btn:hover{background:#fff;border-color:#808080;}
+
+/* ─── GIF PANEL ──────────────────────────────────── */
+#gifPanel{display:none;position:fixed;bottom:68px;left:4px;right:4px;background:var(--btn-face);border:2px solid;border-color:#fff #808080 #808080 #fff;z-index:200;height:260px;flex-direction:column;box-shadow:3px 3px 0 #000;}
+#gifPanel.open{display:flex;}
+.gif-search-bar{display:flex;gap:4px;padding:6px;border-bottom:1px solid #808080;flex-shrink:0;}
+.gif-search-bar input{flex:1;border:2px solid;border-color:#808080 #fff #fff #808080;padding:3px 7px;font-size:12px;font-family:inherit;outline:none;}
+.gif-search-bar button{background:var(--btn-face);border:2px solid;border-color:#fff #808080 #808080 #fff;padding:3px 9px;cursor:pointer;font-size:12px;font-family:inherit;}
+#gifResults{flex:1;overflow-y:auto;padding:5px;display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start;}
+.gif-item{cursor:pointer;border:2px solid transparent;flex-shrink:0;}
+.gif-item:hover{border-color:#000080;}
+.gif-item img{width:88px;height:66px;object-fit:cover;display:block;}
+.gif-msg{font-size:12px;color:#555;padding:10px;width:100%;text-align:center;}
+
+/* ─── EDIT MODAL ─────────────────────────────────── */
+#editModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:300;align-items:center;justify-content:center;}
+#editModal.open{display:flex;}
+.edit-window{background:var(--btn-face);border:2px solid;border-color:#fff #808080 #808080 #fff;width:300px;box-shadow:3px 3px 0 #000;}
+.edit-body{padding:12px;display:flex;flex-direction:column;gap:8px;}
+#editInput{border:2px solid;border-color:#808080 #fff #fff #808080;padding:5px;font-size:13px;font-family:inherit;resize:vertical;min-height:64px;outline:none;width:100%;}
+
+/* ─── SCROLLBARS ─────────────────────────────────── */
+::-webkit-scrollbar{width:16px;height:16px;}
+::-webkit-scrollbar-track{background:var(--btn-face);}
+::-webkit-scrollbar-thumb{background:var(--btn-face);border:2px solid;border-color:#fff #808080 #808080 #fff;}
+::-webkit-scrollbar-button{background:var(--btn-face);border:2px solid;border-color:#fff #808080 #808080 #fff;height:16px;width:16px;}
+
+/* ─── MOBILE ─────────────────────────────────────── */
+@media(max-width:480px){
+  #usersPanel{width:66px;}
+  .user-item span.uname{display:none;}
+  .win-btn{padding:5px 9px;min-width:58px;}
+  #vcPanel{width:calc(100vw - 12px);bottom:72px;right:6px;}
+  .room-code-display{font-size:30px;letter-spacing:8px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════ SETUP SCREEN ══════════ -->
+<div id="setupScreen" class="screen">
+  <div class="win-window setup-window" style="width:100%;max-width:430px;">
+    <div class="win-titlebar"><span>🔥 Firebase Setup — PaintChat</span></div>
+    <div class="setup-body">
+      <p>Paste your <strong>Firebase config object</strong> from the Firebase Console below.<br>It looks like a JavaScript object starting with <code>{</code>.</p>
+      <textarea id="configTA" placeholder='{"apiKey":"AIza...","authDomain":"yourapp.firebaseapp.com","projectId":"yourapp","storageBucket":"yourapp.appspot.com","messagingSenderId":"123456","appId":"1:123456:web:abc123"}'></textarea>
+      <div class="setup-hint">
+        📋 <strong>How to find it:</strong><br>
+        Firebase Console → Your Project → ⚙️ Project Settings → Your apps → SDK config → select <em>Config</em> → copy the object
+      </div>
+      <div class="setup-hint" style="margin-top:-4px;">
+        🔒 <strong>Firestore rules to set:</strong><br>
+        In Firestore → Rules, paste:<br>
+        <code style="display:block;margin-top:4px;white-space:pre;">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /rooms/{r}/{doc=**} {
+      allow read, write: if true;
+    }
+  }
+}</code>
+      </div>
+      <div class="btn-row">
+        <button class="win-btn primary" onclick="saveConfig()">Save &amp; Continue →</button>
+      </div>
+      <div id="setupErr" style="color:red;font-size:12px;text-align:center;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ LOGIN SCREEN ══════════ -->
+<div id="loginScreen" class="screen">
+  <div class="win-window login-window" style="width:100%;max-width:340px;">
+    <div class="win-titlebar"><span>🎨 PaintChat — Sign In</span></div>
+    <div class="login-body">
+      <div>
+        <div class="field-label">Profile Picture <span style="font-weight:normal;color:#666">(optional)</span></div>
+        <div class="avatar-picker">
+          <div class="avatar-preview" id="avatarPreview" onclick="document.getElementById('avatarFileIn').click()" title="Click to upload">🙂</div>
+          <input type="file" id="avatarFileIn" accept="image/*" style="display:none">
+          <div style="font-size:11px;color:#555;line-height:1.6">Click the face<br>to upload a pic</div>
+        </div>
+      </div>
+      <hr class="divider">
+      <div>
+        <div class="field-label">Username <span style="color:red">*</span></div>
+        <input type="text" class="win-input" id="usernameInput" maxlength="20" placeholder="Pick a username…" autocomplete="off">
+      </div>
+      <div class="btn-row">
+        <button class="win-btn primary" onclick="goToLobby()">Let's Go →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ LOBBY SCREEN ══════════ -->
+<div id="lobbyScreen" class="screen">
+  <div class="win-window lobby-window">
+    <div class="win-titlebar"><span>🎨 PaintChat — Lobby</span></div>
+    <div class="lobby-body">
+
+      <div id="paneChoice">
+        <div style="text-align:center;margin-bottom:10px;font-size:13px">Welcome, <strong id="lobbyName"></strong>!</div>
+        <div class="btn-row">
+          <button class="win-btn" onclick="startHostFlow()">🏠 Host Room</button>
+          <button class="win-btn" onclick="startJoinFlow()">🔗 Join Room</button>
+        </div>
+        <hr class="divider">
+        <div style="font-size:11px;color:#666;text-align:center">Rooms are private &amp; end-to-end.<br>Messages live only in your Firebase.</div>
+      </div>
+
+      <div id="paneHost" style="display:none">
+        <div class="field-label" style="text-align:center;margin-bottom:8px">YOUR ROOM CODE</div>
+        <div class="room-code-display" id="generatedCode">····</div>
+        <div class="status-hint" id="hostHint">Creating room…</div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="win-btn" onclick="backToChoice()">← Back</button>
+          <button class="win-btn" id="copyBtn" onclick="copyCode()">Copy Code</button>
+        </div>
+      </div>
+
+      <div id="paneJoin" style="display:none">
+        <div class="field-label" style="text-align:center;margin-bottom:8px">ENTER ROOM CODE</div>
+        <input type="text" class="win-input" id="joinCodeIn" maxlength="4" placeholder="ABCD"
+          style="text-align:center;font-size:30px;letter-spacing:10px;font-family:monospace;text-transform:uppercase;padding:10px;"
+          autocomplete="off" spellcheck="false">
+        <div class="status-hint" id="joinHint"> </div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="win-btn" onclick="backToChoice()">← Back</button>
+          <button class="win-btn primary" onclick="doJoin()">Join →</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ CHAT SCREEN ══════════ -->
+<div id="chatScreen" class="screen">
+
+  <div class="chat-titlebar">
+    <div class="chat-title-left">
+      🎨&nbsp;PaintChat&nbsp;&nbsp;|&nbsp;&nbsp;
+      <span style="font-family:monospace;letter-spacing:3px" id="chatCode">----</span>
+      <span class="host-badge" id="hostBadge" style="display:none">HOST</span>
+    </div>
+    <button id="emergencyBtn" onclick="emergencyLeave()" title="Emergency Leave — instantly boots you out"></button>
+  </div>
+
+  <div class="chat-toolbar">
+    <button class="tool-btn" onclick="toggleEmoji()">😊 Emoji</button>
+    <button class="tool-btn" onclick="toggleGif()">🎞 GIF</button>
+    <button class="tool-btn" onclick="document.getElementById('fileIn').click()">📎 File</button>
+    <input type="file" id="fileIn" style="display:none" onchange="handleFileSelect(event)">
+    <div class="toolbar-sep"></div>
+    <button class="tool-btn" id="vcToggleBtn" onclick="toggleVC()">📹 Voice & Video</button>
+    <div class="toolbar-sep"></div>
+    <span id="connStatus">● Ready</span>
+    <span id="fileProgressText"></span>
+  </div>
+
+  <div class="chat-main">
+    <div id="usersPanel">
+      <div class="users-title">👥 Online</div>
+      <div id="usersList"></div>
+    </div>
+    <div id="messagesArea"></div>
+  </div>
+
+  <div class="chat-input-area">
+    <div class="input-row">
+      <textarea id="msgInput" placeholder="Type a message… (Enter to send, Shift+Enter for newline)" rows="1"
+        onkeydown="onMsgKey(event)" oninput="resizeTA(this)"></textarea>
+      <div class="input-side">
+        <div class="icon-btn" onclick="toggleEmoji()">😊</div>
+        <button id="sendBtn" onclick="sendMsg()">Send</button>
+      </div>
+    </div>
+  </div>
+  <div class="status-bar" id="statusBar">Ready</div>
+
+  <!-- VC PANEL (floating, inside chat screen context) -->
+  <div id="vcPanel">
+    <div class="win-titlebar vc-title">
+      <span>📹 Voice &amp; Video</span>
+      <div class="win-titlebar-btns">
+        <div class="tbar-btn" onclick="toggleVCMin()" title="Minimize">─</div>
+        <div class="tbar-btn" onclick="leaveVC()" title="Close">✕</div>
+      </div>
+    </div>
+    <div id="vcGrid"></div>
+    <div class="vc-controls">
+      <button class="vc-btn" id="muteBtn" onclick="toggleMute()">🎤 Mute</button>
+      <button class="vc-btn" id="camBtn" onclick="toggleCam()">📷 Cam Off</button>
+      <button class="vc-btn" id="screenBtn" onclick="toggleScreen()">🖥 Share</button>
+      <button class="vc-btn danger" onclick="leaveVC()">📵 Leave</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════ EMOJI PANEL ══════════ -->
+<div id="emojiPanel">
+  <div class="emoji-tabs" id="emojiTabs"></div>
+  <div class="emoji-grid" id="emojiGrid"></div>
+</div>
+
+<!-- ══════════ GIF PANEL ══════════ -->
+<div id="gifPanel">
+  <div class="gif-search-bar">
+    <input type="text" id="gifQ" placeholder="Search GIFs…" autocomplete="off">
+    <button onclick="searchGifs()">Search</button>
+    <button onclick="toggleGif()">✕</button>
+  </div>
+  <div id="gifResults"><div class="gif-msg">Search for GIFs above ✨</div></div>
+</div>
+
+<!-- ══════════ EDIT MODAL ══════════ -->
+<div id="editModal">
+  <div class="win-window edit-window">
+    <div class="win-titlebar"><span>✏️ Edit Message</span></div>
+    <div class="edit-body">
+      <textarea id="editInput" class="win-input"></textarea>
+      <div class="btn-row">
+        <button class="win-btn" onclick="closeEdit()">Cancel</button>
+        <button class="win-btn primary" onclick="saveEdit()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// FIREBASE CONFIG PERSISTENCE
+// ══════════════════════════════════════════════════════
+const GIPHY_KEY = 'dc6zaTOxFJmzC';
+const RTC_CONFIG = {iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'},{urls:'stun:stun2.l.google.com:19302'}]};
+
+let db = null;
+
+function saveConfig(){
+  const raw = document.getElementById('configTA').value.trim();
+  const errEl = document.getElementById('setupErr');
+  errEl.textContent='';
+  try{
+    const match = raw.match(/\{[\s\S]*\}/);
+    if(!match) throw new Error('Could not find a JSON object in your paste.');
+    const cfg = JSON.parse(match[0]);
+    if(!cfg.apiKey || !cfg.projectId) throw new Error('Missing apiKey or projectId — make sure you copied the full config.');
+    localStorage.setItem('pcfg', JSON.stringify(cfg));
+    bootFirebase(cfg);
+  } catch(e){
+    errEl.textContent = '⚠ '+e.message;
+  }
+}
+
+function bootFirebase(cfg){
+  try{
+    if(firebase.apps.length) firebase.apps[0].delete().then(()=>_init(cfg));
+    else _init(cfg);
+  } catch(e){ _init(cfg); }
+}
+function _init(cfg){
+  try{
+    firebase.initializeApp(cfg);
+    db = firebase.firestore();
+    showScreen('loginScreen');
+  } catch(e){
+    document.getElementById('setupErr').textContent='Firebase error: '+e.message;
+  }
+}
+
+function initApp(){
+  const stored = localStorage.getItem('pcfg');
+  if(stored){
+    try{ bootFirebase(JSON.parse(stored)); return; } catch(e){}
+  }
+  showScreen('setupScreen');
+}
+
+// ══════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════
+let myPeerId   = uid();
+let myUsername = '', myAvatar = null;
+let isHost     = false, roomCode = '';
+let peerConns  = {};     // remotePeerId → RTCPeerConnection
+let dataChans  = {};     // remotePeerId → RTCDataChannel
+let remStreams  = {};     // remotePeerId → MediaStream
+let localStream  = null;
+let screenStream = null;
+let micMuted = false, camOff = false, isSharing = false;
+let inVC = false;
+let fsListeners = [];  // firestore unsubscribers
+
+// In-flight file receives: { fileId → {chunks, got, total, filename, mimeType, fromPeerId} }
+let pendingFileRecv = {};
+// Outgoing file send queue
+let isSendingFile = false;
+
+// ══════════════════════════════════════════════════════
+// EMOJI
+// ══════════════════════════════════════════════════════
+const EMOJIS = {
+  '😀':'😀😃😄😁😆😅😂🤣😊😇🙂🙃😉😌😍🥰😘😗😙😚😋😛😝😜🤪🤨🧐🤓😎🥸🤩🥳😏😒😞😔😟😕🙁☹️😣😖😫😩🥺😢😭😤😠😡🤬🤯😳🥵🥶😱😨😰😥😓🤗🤔🤭🤫🤥😶😐😑😬🙄😯😦😧😮😲🥱😴🤤😪😵💫🤐🥴🤢🤮🤧😷🤒🤕🤑🤠😈👿👹👺🤡💀☠️👻👽👾🤖🫡🥹🫠',
+  '👋':'👋🤚🖐✋🖖👌🤌🤏✌️🤞🤟🤘🤙👈👉👆🖕👇☝️👍👎✊👊🤛🤜👏🙌👐🤲🤝🙏✍️💅🤳💪🦵🦶👂🦻👃👀👁👅👄💋',
+  '🐱':'🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🙈🙉🙊🐔🐧🐦🐤🦆🦅🦉🦇🐺🐗🐴🦄🐝🦋🐌🐞🐜🦟🦗🕷🐢🐍🦎🐙🦑🦐🦀🐡🐠🐟🐬🐳🐋🦈🐊🐅🐆🦓🦍🐘🐪🐫🦒🦘🐃🐂🐄🐎🐖🐏🐑🦙🐐🦌🐕🐩🐈',
+  '🍎':'🍎🍊🍋🍇🍓🫐🍈🍒🍑🥭🍍🥥🥝🍅🍆🥑🥦🥬🥒🌶🫑🧄🧅🥔🍠🥐🥯🍞🥖🧀🥚🍳🥞🧇🥓🥩🍗🍖🌭🍔🍟🍕🌮🌯🥗🥘🍝🍜🍲🍛🍣🍱🥟🍤🍙🍚🍘🍥🥮🍡🍧🍨🍦🥧🧁🍰🎂🍮🍭🍬🍫🍿🍩🍪',
+  '⚽':'⚽🏀🏈⚾🥎🎾🏐🏉🎱🪀🏓🏸🥅⛳🎣🤿🎽🎿🛷🎯🎮🎲🎭🎨🎰🚗🏎🚀🛸🚁⛵🚢🏖🏝🌋🗻🏕🏠🏢🏛🗼🗽🌃🌆🌇🌉🌌🎡🎢🎠',
+  '❤️':'❤️🧡💛💚💙💜🖤🤍🤎💔❣️💕💞💓💗💖💘💝✨⭐🌟💫⚡🔥🌈🌊💧🌀🌸🌺🌻🌹🌷🌼💐🍀🌿🍃🍂🍁🍄🌾💎🔮🧿🪄🎁🎀🎊🎉🎈🎆🎇',
+  '🔔':'🔔🔕🔇🔊📢📣🎵🎶🎼🎤🎧🎷🎸🎹🎺🎻🥁📱💻🖥🖨⌨️🖱💾💿📷📹🎥📽📞☎️📺📻🧭⏰⌚📡🔋💡🔦🕯🧲🔭🔬🩺💊💉🧬🧪🔑🗝🔒🔓🚪',
+  '📝':'📝✏️✒️🖊🖋🖌🖍📚📖🔖🔗📎🖇📐📏📦📫📮📰📓📔📒📕📗📘📙📃📜📄🗓📆📅📊📈📉📁📂🗂'
+};
+
+// ══════════════════════════════════════════════════════
+// AVATAR HELPER
+// ══════════════════════════════════════════════════════
+document.getElementById('avatarFileIn').addEventListener('change', e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = async ev=>{
+    myAvatar = await resizeImg(ev.target.result, 48);
+    const p = document.getElementById('avatarPreview');
+    p.innerHTML = `<img src="${myAvatar}" alt="">`;
+  };
+  r.readAsDataURL(f);
+});
+
+function resizeImg(dataUrl, size){
+  return new Promise(res=>{
+    const img = new Image();
+    img.onload=()=>{
+      const c = document.createElement('canvas');
+      c.width = c.height = size;
+      c.getContext('2d').drawImage(img,0,0,size,size);
+      res(c.toDataURL('image/jpeg',.75));
+    };
+    img.src=dataUrl;
+  });
+}
+
+// ══════════════════════════════════════════════════════
+// SCREEN HELPERS
+// ══════════════════════════════════════════════════════
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function showPane(id){
+  ['paneChoice','paneHost','paneJoin'].forEach(p=>document.getElementById(p).style.display='none');
+  document.getElementById(id).style.display='block';
+}
+
+// ══════════════════════════════════════════════════════
+// LOGIN → LOBBY
+// ══════════════════════════════════════════════════════
+function goToLobby(){
+  const u = document.getElementById('usernameInput').value.trim();
+  if(!u){ alert('Please enter a username!'); return; }
+  myUsername = u;
+  document.getElementById('lobbyName').textContent = myUsername;
+  showScreen('lobbyScreen');
+  backToChoice();
+}
+
+function backToChoice(){
+  cleanupRoom();
+  showPane('paneChoice');
+}
+
+// ══════════════════════════════════════════════════════
+// HOST FLOW
+// ══════════════════════════════════════════════════════
+function startHostFlow(){ showPane('paneHost'); hostRoom(); }
+
+async function hostRoom(){
+  isHost = true;
+  roomCode = randCode();
+  document.getElementById('generatedCode').textContent = roomCode;
+  document.getElementById('hostHint').textContent = 'Creating room in Firebase…';
+  try{
+    const roomRef = db.collection('rooms').doc(roomCode);
+    const snap = await roomRef.get();
+    if(snap.exists && snap.data().active){
+      // code taken, try another
+      hostRoom(); return;
+    }
+    await roomRef.set({
+      hostPeerId: myPeerId, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      active: true, emergencyLeft: false, emergencyLeftAt: null
+    });
+    document.getElementById('hostHint').textContent = 'Room ready! Share this code.';
+    enterChat();
+  } catch(e){
+    document.getElementById('hostHint').textContent = 'Error: '+e.message;
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// JOIN FLOW
+// ══════════════════════════════════════════════════════
+function startJoinFlow(){
+  showPane('paneJoin');
+  document.getElementById('joinCodeIn').value='';
+  document.getElementById('joinHint').textContent='';
+  document.getElementById('joinCodeIn').focus();
+}
+
+async function doJoin(){
+  const code = document.getElementById('joinCodeIn').value.trim().toUpperCase();
+  if(code.length!==4){ document.getElementById('joinHint').textContent='Enter a 4-letter code.'; return; }
+  document.getElementById('joinHint').textContent='Checking room…';
+  try{
+    const snap = await db.collection('rooms').doc(code).get();
+    if(!snap.exists || !snap.data().active){
+      document.getElementById('joinHint').textContent='Room not found or already closed.'; return;
+    }
+    const d = snap.data();
+    // Check 1-hour emergency-leave expiry
+    if(d.emergencyLeft && d.emergencyLeftAt){
+      const leftMs = d.emergencyLeftAt.toMillis?.() || 0;
+      if(Date.now() - leftMs > 3600000){
+        document.getElementById('joinHint').textContent='Room expired (host left over 1 hour ago).'; return;
+      }
+    }
+    isHost = false;
+    roomCode = code;
+    document.getElementById('joinHint').textContent='Joined!';
+    enterChat();
+  } catch(e){
+    document.getElementById('joinHint').textContent='Error: '+e.message;
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// ENTER CHAT
+// ══════════════════════════════════════════════════════
+function enterChat(){
+  document.getElementById('chatCode').textContent = roomCode;
+  document.getElementById('hostBadge').style.display = isHost ? 'inline' : 'none';
+  showScreen('chatScreen');
+  buildEmojiPanel();
+  setupPresence();
+  setupMessageListener();
+  setupPeerListener();
+  setupIncomingCallListener();
+  if(isHost) sysMsg('🎨 Room created! Give your friends the code: '+roomCode);
+  document.getElementById('msgInput').focus();
+}
+
+// ══════════════════════════════════════════════════════
+// PRESENCE
+// ══════════════════════════════════════════════════════
+async function setupPresence(){
+  const peerRef = db.collection('rooms').doc(roomCode).collection('peers').doc(myPeerId);
+  await peerRef.set({
+    peerId: myPeerId, username: myUsername, avatar: myAvatar||null,
+    joinedAt: firebase.firestore.FieldValue.serverTimestamp(), active: true, inVC: false
+  });
+  // On unload, mark inactive
+  window.addEventListener('beforeunload', ()=>peerRef.update({active:false}).catch(()=>{}));
+}
+
+// ══════════════════════════════════════════════════════
+// FIRESTORE MESSAGES
+// ══════════════════════════════════════════════════════
+function setupMessageListener(){
+  const unsub = db.collection('rooms').doc(roomCode).collection('messages')
+    .orderBy('ts').onSnapshot(snap=>{
+      snap.docChanges().forEach(ch=>{
+        if(ch.type==='added')    renderMsg(ch.doc.data());
+        if(ch.type==='modified') updateMsgEl(ch.doc.data());
+        // 'removed' handled by soft-delete (deleted flag)
+      });
+    });
+  fsListeners.push(unsub);
+}
+
+async function sendMsg(){
+  const el = document.getElementById('msgInput');
+  const text = el.value.trim(); if(!text) return;
+  const msg = mkMsg('text', text);
+  await db.collection('rooms').doc(roomCode).collection('messages').doc(msg.id).set(msg);
+  el.value=''; el.style.height='auto';
+}
+
+async function sendGif(url){
+  const msg = mkMsg('gif', url);
+  await db.collection('rooms').doc(roomCode).collection('messages').doc(msg.id).set(msg);
+  toggleGif();
+}
+
+function mkMsg(type, content){
+  return {id:uid(), peerId:myPeerId, username:myUsername, avatar:myAvatar||null,
+    content, msgType:type, ts:firebase.firestore.FieldValue.serverTimestamp(),
+    tsLocal: Date.now(), edited:false, deleted:false};
+}
+
+function renderMsg(msg){
+  if(document.querySelector(`[data-id="${msg.id}"]`)) return;
+  const area = document.getElementById('messagesArea');
+  const isMe = msg.peerId===myPeerId;
+
+  const wrap = document.createElement('div');
+  wrap.className='msg'; wrap.dataset.id=msg.id;
+
+  const av = document.createElement('div'); av.className='msg-avatar';
+  if(msg.avatar) av.innerHTML=`<img src="${esc(msg.avatar)}" alt="">`;
+  else av.textContent='🙂';
+
+  const body = document.createElement('div'); body.className='msg-body';
+  const ts = msg.ts?.toDate ? msg.ts.toDate() : new Date(msg.tsLocal||Date.now());
+  const t = ts.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  body.innerHTML=`<div class="msg-header"><span class="msg-username">${esc(msg.username)}</span><span class="msg-time">${t}</span></div>`;
+
+  const cd = document.createElement('div'); cd.className='msg-content'; cd.dataset.mid=msg.id;
+  if(msg.deleted) cd.innerHTML='<span class="msg-deleted">[message deleted]</span>';
+  else setMsgContent(cd, msg);
+  body.appendChild(cd);
+
+  if(isMe && !msg.deleted){
+    const acts = document.createElement('div'); acts.className='msg-actions';
+    if(msg.msgType==='text') acts.innerHTML+=`<button class="msg-action-btn" onclick="openEdit('${msg.id}')">✏️ Edit</button>`;
+    acts.innerHTML+=`<button class="msg-action-btn" onclick="doDelete('${msg.id}')">🗑️ Delete</button>`;
+    body.appendChild(acts);
+  }
+
+  wrap.appendChild(av); wrap.appendChild(body);
+  area.appendChild(wrap);
+  scrollBottom();
+}
+
+function setMsgContent(el, msg){
+  if(msg.msgType==='gif'){
+    el.classList.add('msg-gif');
+    el.innerHTML=`<img src="${esc(msg.content)}" loading="lazy" alt="GIF">`;
+  } else if(msg.msgType==='file_meta'){
+    el.innerHTML=msg.content; // pre-rendered HTML
+  } else {
+    el.textContent = msg.content;
+    if(msg.edited) el.innerHTML+=' <span class="msg-edited">(edited)</span>';
+  }
+}
+
+function updateMsgEl(msg){
+  const cd = document.querySelector(`[data-mid="${msg.id}"]`);
+  if(!cd) return;
+  if(msg.deleted){ cd.innerHTML='<span class="msg-deleted">[message deleted]</span>'; return; }
+  setMsgContent(cd, msg);
+}
+
+// Edit / Delete
+let editingId = null;
+function openEdit(id){
+  const el=document.querySelector(`[data-mid="${id}"]`);
+  if(!el) return;
+  editingId=id;
+  document.getElementById('editInput').value=el.textContent.replace(' (edited)','');
+  document.getElementById('editModal').classList.add('open');
+  document.getElementById('editInput').focus();
+}
+function closeEdit(){ document.getElementById('editModal').classList.remove('open'); editingId=null; }
+async function saveEdit(){
+  const nc = document.getElementById('editInput').value.trim();
+  if(!nc||!editingId) return;
+  await db.collection('rooms').doc(roomCode).collection('messages').doc(editingId)
+    .update({content:nc, edited:true});
+  closeEdit();
+}
+async function doDelete(id){
+  if(!confirm('Delete this message?')) return;
+  await db.collection('rooms').doc(roomCode).collection('messages').doc(id)
+    .update({deleted:true, content:''});
+}
+
+// ══════════════════════════════════════════════════════
+// WEBRTC PEER MANAGEMENT
+// ══════════════════════════════════════════════════════
+function setupPeerListener(){
+  const unsub = db.collection('rooms').doc(roomCode).collection('peers')
+    .onSnapshot(snap=>{
+      const online = [];
+      snap.docChanges().forEach(ch=>{
+        if(ch.type==='added' && ch.doc.id!==myPeerId){
+          const rid = ch.doc.id;
+          online.push({id:rid,...ch.doc.data()});
+          if(!peerConns[rid]){
+            // Deterministic caller: larger ID calls smaller ID
+            if(myPeerId > rid) initiateCallTo(rid);
+            // else: wait for them to call me via setupIncomingCallListener
+          }
+        }
+        if(ch.type==='removed'){ closePeer(ch.doc.id); }
+      });
+      updateUsersList();
+    });
+  fsListeners.push(unsub);
+}
+
+function setupIncomingCallListener(){
+  const unsub = db.collection('rooms').doc(roomCode).collection('calls')
+    .where('calleeId','==',myPeerId)
+    .onSnapshot(snap=>{
+      snap.docChanges().forEach(ch=>{
+        if(ch.type==='added') answerCallFrom(ch.doc.id, ch.doc.data());
+      });
+    });
+  fsListeners.push(unsub);
+}
+
+function createPC(remotePeerId){
+  const pc = new RTCPeerConnection(RTC_CONFIG);
+  peerConns[remotePeerId] = pc;
+
+  pc.onicecandidate = ()=>{}; // set per-call below
+  pc.ontrack = e=>{
+    if(!remStreams[remotePeerId]) remStreams[remotePeerId] = new MediaStream();
+    e.streams[0].getTracks().forEach(t=> remStreams[remotePeerId].addTrack(t));
+    refreshVCGrid();
+  };
+  pc.onconnectionstatechange = ()=>{
+    if(['disconnected','failed','closed'].includes(pc.connectionState)) closePeer(remotePeerId);
+  };
+  pc.onnegotiationneeded = async ()=>{
+    if(!peerConns[remotePeerId]) return;
+    try{
+      const callRef = db.collection('rooms').doc(roomCode).collection('calls').doc(`${myPeerId}_${remotePeerId}`);
+      const offerSnap = await callRef.get();
+      // Only renegotiate if we were originally the caller
+      if(!offerSnap.exists) return; // not the caller, skip
+      const offer = await pc.createOffer();
+      if(pc.signalingState==='closed') return;
+      await pc.setLocalDescription(offer);
+      await callRef.update({offer:{type:offer.type,sdp:offer.sdp}, answer:null});
+    } catch(e){ console.warn('renegotiation', e); }
+  };
+  return pc;
+}
+
+async function initiateCallTo(remotePeerId){
+  if(peerConns[remotePeerId]) return;
+  const pc = createPC(remotePeerId);
+  const callId = `${myPeerId}_${remotePeerId}`;
+  const callRef = db.collection('rooms').doc(roomCode).collection('calls').doc(callId);
+
+  // Data channel
+  const dc = pc.createDataChannel('files', {ordered:true});
+  setupDC(dc, remotePeerId);
+
+  // Media tracks (if already in VC)
+  if(localStream) localStream.getTracks().forEach(t=>pc.addTrack(t, localStream));
+
+  // ICE → Firestore
+  pc.onicecandidate = e=>{ if(e.candidate) callRef.collection('offerCandidates').add(e.candidate.toJSON()); };
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  await callRef.set({callerId:myPeerId, calleeId:remotePeerId, offer:{type:offer.type,sdp:offer.sdp}});
+
+  // Listen for answer
+  const unsub = callRef.onSnapshot(async snap=>{
+    const d = snap.data();
+    if(d?.answer && !pc.currentRemoteDescription){
+      await pc.setRemoteDescription(new RTCSessionDescription(d.answer));
+    } else if(d?.answer===null && pc.currentRemoteDescription){
+      // Renegotiation reset
+      const offer2 = await pc.createOffer();
+      if(pc.signalingState==='closed') return;
+      await pc.setLocalDescription(offer2);
+      await callRef.update({offer:{type:offer2.type,sdp:offer2.sdp}});
+    }
+  });
+  fsListeners.push(unsub);
+
+  // Listen for answer candidates
+  const unsub2 = callRef.collection('answerCandidates').onSnapshot(snap=>{
+    snap.docChanges().forEach(ch=>{
+      if(ch.type==='added') pc.addIceCandidate(new RTCIceCandidate(ch.doc.data())).catch(()=>{});
+    });
+  });
+  fsListeners.push(unsub2);
+}
+
+async function answerCallFrom(callId, callData){
+  const remotePeerId = callData.callerId;
+  if(peerConns[remotePeerId]) return;
+  const pc = createPC(remotePeerId);
+  const callRef = db.collection('rooms').doc(roomCode).collection('calls').doc(callId);
+
+  // Data channel handler
+  pc.ondatachannel = e=>{ setupDC(e.channel, remotePeerId); };
+
+  // Media tracks (if already in VC)
+  if(localStream) localStream.getTracks().forEach(t=>pc.addTrack(t, localStream));
+
+  // ICE → Firestore
+  pc.onicecandidate = e=>{ if(e.candidate) callRef.collection('answerCandidates').add(e.candidate.toJSON()); };
+
+  await pc.setRemoteDescription(new RTCSessionDescription(callData.offer));
+  const answer = await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+  await callRef.update({answer:{type:answer.type,sdp:answer.sdp}});
+
+  // Renegotiation: watch for new offers
+  const unsub = callRef.onSnapshot(async snap=>{
+    const d = snap.data();
+    if(d?.offer && d.offer.sdp !== callData.offer.sdp && !d.answer){
+      if(pc.signalingState==='closed') return;
+      await pc.setRemoteDescription(new RTCSessionDescription(d.offer));
+      const ans2 = await pc.createAnswer();
+      await pc.setLocalDescription(ans2);
+      await callRef.update({answer:{type:ans2.type,sdp:ans2.sdp}});
+    }
+  });
+  fsListeners.push(unsub);
+
+  // Offer candidates
+  const unsub2 = callRef.collection('offerCandidates').onSnapshot(snap=>{
+    snap.docChanges().forEach(ch=>{
+      if(ch.type==='added') pc.addIceCandidate(new RTCIceCandidate(ch.doc.data())).catch(()=>{});
+    });
+  });
+  fsListeners.push(unsub2);
+}
+
+function closePeer(pid){
+  if(peerConns[pid]){ try{peerConns[pid].close();}catch(e){} delete peerConns[pid]; }
+  delete dataChans[pid];
+  delete remStreams[pid];
+  refreshVCGrid();
+  updateUsersList();
+}
+
+// ══════════════════════════════════════════════════════
+// DATA CHANNELS — FILE TRANSFER
+// ══════════════════════════════════════════════════════
+function setupDC(dc, remotePeerId){
+  dataChans[remotePeerId] = dc;
+  dc.binaryType = 'arraybuffer';
+  dc.onmessage = e=>{
+    if(typeof e.data === 'string') handleDCJson(JSON.parse(e.data), remotePeerId);
+    else handleDCBinary(e.data, remotePeerId);
+  };
+  dc.onopen = ()=>{ setStatus('Connected'); };
+}
+
+function handleDCJson(d, from){
+  if(d.type==='file_header'){
+    pendingFileRecv[d.fileId]={
+      chunks:new Array(d.total), got:0, total:d.total,
+      filename:d.filename, mimeType:d.mimeType, size:d.size, from
+    };
+  } else if(d.type==='file_done'){
+    finalizeFileRecv(d.fileId);
+  }
+}
+
+function handleDCBinary(buf, from){
+  // Protocol: 20 bytes fileId (padded ASCII) + 4 bytes chunk idx + rest = data
+  const bytes = new Uint8Array(buf);
+  const idBytes = bytes.slice(0,20);
+  const fileId = new TextDecoder().decode(idBytes).replace(/\0/g,'');
+  const idx = new DataView(buf).getUint32(20,false);
+  const data = buf.slice(24);
+
+  const pf = pendingFileRecv[fileId];
+  if(!pf) return;
+  pf.chunks[idx] = new Uint8Array(data);
+  pf.got++;
+  const pct = Math.round(pf.got/pf.total*100);
+  document.getElementById('fileProgressText').textContent=`📥 ${pct}%`;
+}
+
+function finalizeFileRecv(fileId){
+  const pf = pendingFileRecv[fileId]; if(!pf) return;
+  let len=0; pf.chunks.forEach(c=>c&&(len+=c.length));
+  const buf=new Uint8Array(len); let off=0;
+  pf.chunks.forEach(c=>{ if(c){buf.set(c,off);off+=c.length;} });
+  const blob=new Blob([buf],{type:pf.mimeType||'application/octet-stream'});
+  const url=URL.createObjectURL(blob);
+  updateFileMsg(fileId, url, pf.filename, pf.size, pf.mimeType);
+  delete pendingFileRecv[fileId];
+  document.getElementById('fileProgressText').textContent='';
+}
+
+const CHUNK_SZ = 16384;
+
+async function sendFileOverDC(file){
+  if(isSendingFile){ alert('Wait for current upload.'); return; }
+  if(file.size > 250*1024*1024){ alert('Max 250 MB per file.'); return; }
+  const peers = Object.values(dataChans).filter(dc=>dc.readyState==='open');
+  if(!peers.length){ alert('No one else is connected yet.'); return; }
+
+  isSendingFile = true;
+  const fid = uid20();
+  const buf = await file.arrayBuffer();
+  const total = Math.ceil(buf.byteLength/CHUNK_SZ) || 1;
+  const pEl = document.getElementById('fileProgressText');
+
+  // Firestore meta message so everyone sees it in history
+  const metaHtml = fileMetaHTML(fid, file.name, file.size, file.type, null);
+  const msg = {id:fid, peerId:myPeerId, username:myUsername, avatar:myAvatar||null,
+    content:metaHtml, msgType:'file_meta', ts:firebase.firestore.FieldValue.serverTimestamp(),
+    tsLocal:Date.now(), edited:false, deleted:false, fileName:file.name, fileSize:file.size};
+  await db.collection('rooms').doc(roomCode).collection('messages').doc(fid).set(msg);
+
+  // Send header to all DC peers
+  const header = JSON.stringify({type:'file_header',fileId:fid,filename:file.name,mimeType:file.type,size:file.size,total});
+  peers.forEach(dc=>dc.send(header));
+
+  // Send chunks
+  for(let i=0;i<total;i++){
+    const slice = buf.slice(i*CHUNK_SZ, (i+1)*CHUNK_SZ);
+    const frame = new ArrayBuffer(24+slice.byteLength);
+    const idEnc = new TextEncoder().encode(fid.substring(0,20).padEnd(20,'\0'));
+    new Uint8Array(frame).set(idEnc,0);
+    new DataView(frame).setUint32(20,i,false);
+    new Uint8Array(frame).set(new Uint8Array(slice),24);
+    peers.forEach(dc=>{ try{dc.send(frame);}catch(e){} });
+    pEl.textContent=`📤 ${Math.round((i+1)/total*100)}%`;
+    if(i%10===0) await sleep(4);
+  }
+
+  peers.forEach(dc=>dc.send(JSON.stringify({type:'file_done',fileId:fid})));
+  pEl.textContent='';
+  isSendingFile=false;
+
+  // Update own message with download link
+  const localBlob=new Blob([buf],{type:file.type});
+  const url=URL.createObjectURL(localBlob);
+  updateFileMsg(fid, url, file.name, file.size, file.type);
+}
+
+function updateFileMsg(id, url, name, size, mime){
+  const el=document.querySelector(`[data-mid="${id}"]`);
+  if(el) el.innerHTML=fileMetaHTML(id, name, size, mime, url);
+}
+
+function fileMetaHTML(id, name, size, mime, url){
+  const icon=fileIcon(mime,name), sz=fmtSize(size);
+  const isImg=mime?.startsWith('image/'), isVid=mime?.startsWith('video/');
+  if(url && isImg) return `<img src="${esc(url)}" style="max-width:260px;max-height:200px;margin-top:4px;display:block;border:1px solid #ccc" alt="${esc(name)}">`;
+  if(url && isVid) return `<video controls src="${esc(url)}" style="max-width:260px;max-height:180px;margin-top:4px;display:block"></video>`;
+  const dl=url?`onclick="dlFile('${esc(url)}','${esc(name)}')" style="cursor:pointer"`:'';
+  return `<div class="msg-file" ${dl}><span class="file-icon-lg">${icon}</span><div class="file-info"><div class="file-name">${esc(name)}</div><div class="file-size">${sz}${url?' · Click to download':' · Receiving…'}</div></div></div>`;
+}
+
+function dlFile(url,name){ const a=document.createElement('a');a.href=url;a.download=name;a.click(); }
+function fileIcon(m,n){
+  const ext=(n||'').split('.').pop().toLowerCase();
+  if(!m){if(['mp4','webm','mov'].includes(ext))return'🎥';if(['mp3','wav','ogg'].includes(ext))return'🎵';if(['jpg','jpeg','png','gif','webp'].includes(ext))return'🖼️';if(ext==='pdf')return'📄';if(['zip','rar','7z'].includes(ext))return'📦';return'📁';}
+  if(m.startsWith('video/'))return'🎥';if(m.startsWith('audio/'))return'🎵';if(m.startsWith('image/'))return'🖼️';if(m.includes('pdf'))return'📄';if(m.includes('zip'))return'📦';return'📁';
+}
+function fmtSize(b){if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(1)+' MB';}
+
+function handleFileSelect(e){
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  sendFileOverDC(f);
+}
+
+// ══════════════════════════════════════════════════════
+// VOICE & VIDEO CALLING
+// ══════════════════════════════════════════════════════
+async function toggleVC(){
+  if(inVC){ leaveVC(); return; }
+  try{
+    localStream = await navigator.mediaDevices.getUserMedia({audio:true, video:true});
+  } catch(err){
+    try{ localStream = await navigator.mediaDevices.getUserMedia({audio:true, video:false}); }
+    catch(e){ alert('Could not access microphone/camera: '+e.message); return; }
+  }
+  inVC=true;
+  document.getElementById('vcToggleBtn').classList.add('active-vc');
+  document.getElementById('vcPanel').classList.add('open');
+
+  // Add tracks to all existing peer connections (triggers renegotiation)
+  for(const [pid, pc] of Object.entries(peerConns)){
+    localStream.getTracks().forEach(t=>pc.addTrack(t, localStream));
+  }
+
+  // Update presence
+  db.collection('rooms').doc(roomCode).collection('peers').doc(myPeerId)
+    .update({inVC:true}).catch(()=>{});
+
+  refreshVCGrid();
+}
+
+function leaveVC(){
+  if(localStream){ localStream.getTracks().forEach(t=>t.stop()); localStream=null; }
+  if(screenStream){ screenStream.getTracks().forEach(t=>t.stop()); screenStream=null; }
+  inVC=false; micMuted=false; camOff=false; isSharing=false;
+  document.getElementById('vcPanel').classList.remove('open');
+  document.getElementById('vcToggleBtn').classList.remove('active-vc');
+  document.getElementById('vcGrid').innerHTML='';
+  db.collection('rooms').doc(roomCode).collection('peers').doc(myPeerId)
+    .update({inVC:false}).catch(()=>{});
+  // Remove tracks from peer connections
+  for(const pc of Object.values(peerConns)){
+    pc.getSenders().forEach(s=>{ try{pc.removeTrack(s);}catch(e){} });
+  }
+}
+
+function refreshVCGrid(){
+  const grid = document.getElementById('vcGrid');
+  grid.innerHTML='';
+
+  if(inVC && localStream){
+    const tile = mkVideoTile('You (local)', localStream, true);
+    grid.appendChild(tile);
+  }
+
+  for(const [pid, stream] of Object.entries(remStreams)){
+    if(!stream.getTracks().length) continue;
+    const peerData = getPeerData(pid);
+    const tile = mkVideoTile(peerData?.username||'Peer', stream, false);
+    grid.appendChild(tile);
+  }
+}
+
+function mkVideoTile(label, stream, muted){
+  const tile = document.createElement('div'); tile.className='vc-tile';
+  const vid = document.createElement('video');
+  vid.autoplay=true; vid.playsInline=true; if(muted) vid.muted=true;
+  vid.srcObject=stream;
+  const lbl = document.createElement('div'); lbl.className='vc-tile-label'; lbl.textContent=label;
+  tile.appendChild(vid); tile.appendChild(lbl);
+  return tile;
+}
+
+function toggleMute(){
+  if(!localStream) return;
+  micMuted=!micMuted;
+  localStream.getAudioTracks().forEach(t=>t.enabled=!micMuted);
+  const btn=document.getElementById('muteBtn');
+  btn.textContent=micMuted?'🔇 Unmute':'🎤 Mute';
+  btn.classList.toggle('muted', micMuted);
+}
+
+function toggleCam(){
+  if(!localStream) return;
+  camOff=!camOff;
+  localStream.getVideoTracks().forEach(t=>t.enabled=!camOff);
+  const btn=document.getElementById('camBtn');
+  btn.textContent=camOff?'📷 Cam On':'📷 Cam Off';
+  btn.classList.toggle('off', camOff);
+}
+
+async function toggleScreen(){
+  if(isSharing){ stopScreen(); return; }
+  if(!navigator.mediaDevices?.getDisplayMedia){
+    alert('Screen sharing is not supported on this device/browser.'); return;
+  }
+  try{
+    screenStream = await navigator.mediaDevices.getDisplayMedia({video:true, audio:true});
+    isSharing=true;
+    const btn=document.getElementById('screenBtn');
+    btn.textContent='🖥 Stop Share'; btn.classList.add('sharing');
+
+    const screenTrack = screenStream.getVideoTracks()[0];
+    screenTrack.onended = ()=>stopScreen();
+
+    // Replace video track in all peer connections
+    for(const pc of Object.values(peerConns)){
+      const sender = pc.getSenders().find(s=>s.track?.kind==='video');
+      if(sender) sender.replaceTrack(screenTrack).catch(()=>{});
+    }
+    // Update local video tile
+    refreshVCGrid();
+  } catch(e){ if(e.name!=='NotAllowedError') alert('Screen share error: '+e.message); }
+}
+
+function stopScreen(){
+  if(screenStream){ screenStream.getTracks().forEach(t=>t.stop()); screenStream=null; }
+  isSharing=false;
+  const btn=document.getElementById('screenBtn');
+  btn.textContent='🖥 Share'; btn.classList.remove('sharing');
+
+  // Restore camera track
+  if(localStream){
+    const camTrack = localStream.getVideoTracks()[0];
+    if(camTrack){
+      for(const pc of Object.values(peerConns)){
+        const sender=pc.getSenders().find(s=>s.track?.kind==='video');
+        if(sender) sender.replaceTrack(camTrack).catch(()=>{});
+      }
+    }
+  }
+  refreshVCGrid();
+}
+
+function toggleVCMin(){
+  document.getElementById('vcPanel').classList.toggle('minimized');
+}
+
+// ══════════════════════════════════════════════════════
+// USERS PANEL
+// ══════════════════════════════════════════════════════
+function updateUsersList(){
+  // Re-query presence
+  db.collection('rooms').doc(roomCode).collection('peers')
+    .where('active','==',true).get().then(snap=>{
+      const list=document.getElementById('usersList'); list.innerHTML='';
+      snap.forEach(doc=>{
+        const u=doc.data();
+        const d=document.createElement('div'); d.className='user-item';
+        const av=document.createElement('div'); av.className='user-avatar-sm';
+        if(u.avatar) av.innerHTML=`<img src="${esc(u.avatar)}" alt="">`;
+        else av.textContent='🙂';
+        const nm=document.createElement('span'); nm.className='uname';
+        nm.textContent=(u.username||'?')+(doc.id===myPeerId?' (you)':'');
+        const vc=document.createElement('span'); vc.className='user-vc-icon';
+        if(u.inVC) vc.textContent=' 📹';
+        d.appendChild(av); d.appendChild(nm); d.appendChild(vc);
+        list.appendChild(d);
+      });
+    }).catch(()=>{});
+}
+
+function getPeerData(pid){
+  // Pull from live firestore in background; return cached or null
+  return null; // async refresh handled by updateUsersList
+}
+
+// ══════════════════════════════════════════════════════
+// EMERGENCY LEAVE
+// ══════════════════════════════════════════════════════
+async function emergencyLeave(){
+  closeAllPanels();
+  if(isHost){
+    try{
+      await db.collection('rooms').doc(roomCode).update({
+        emergencyLeft:true,
+        emergencyLeftAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
+    } catch(e){}
+  }
+  cleanupRoom();
+  showScreen('lobbyScreen');
+  backToChoice();
+}
+
+// ══════════════════════════════════════════════════════
+// CLEANUP
+// ══════════════════════════════════════════════════════
+function cleanupRoom(){
+  // Unsubscribe all Firestore listeners
+  fsListeners.forEach(u=>{ try{u();}catch(e){} });
+  fsListeners=[];
+
+  // Close all peer connections
+  for(const pc of Object.values(peerConns)){ try{pc.close();}catch(e){} }
+  peerConns={}; dataChans={}; remStreams={};
+
+  // Stop media
+  if(localStream){ localStream.getTracks().forEach(t=>t.stop()); localStream=null; }
+  if(screenStream){ screenStream.getTracks().forEach(t=>t.stop()); screenStream=null; }
+  inVC=false; micMuted=false; camOff=false; isSharing=false;
+
+  // Mark peer inactive
+  if(db && roomCode && myPeerId){
+    db.collection('rooms').doc(roomCode).collection('peers').doc(myPeerId)
+      .update({active:false}).catch(()=>{});
+  }
+
+  document.getElementById('messagesArea').innerHTML='';
+  document.getElementById('vcGrid').innerHTML='';
+  document.getElementById('vcPanel').classList.remove('open');
+  document.getElementById('vcToggleBtn').classList.remove('active-vc');
+  document.getElementById('usersList').innerHTML='';
+  isHost=false; roomCode='';
+}
+
+// ══════════════════════════════════════════════════════
+// EMOJI PANEL
+// ══════════════════════════════════════════════════════
+function buildEmojiPanel(){
+  const tabs=document.getElementById('emojiTabs'); tabs.innerHTML='';
+  const grid=document.getElementById('emojiGrid'); grid.innerHTML='';
+  let first=true;
+  for(const [cat, str] of Object.entries(EMOJIS)){
+    const emojis=[...str];
+    const tab=document.createElement('button'); tab.className='emoji-tab'+(first?' active':'');
+    tab.textContent=cat;
+    tab.onclick=()=>{ document.querySelectorAll('.emoji-tab').forEach(t=>t.classList.remove('active')); tab.classList.add('active'); fillEmojiGrid(emojis); };
+    tabs.appendChild(tab);
+    if(first){ fillEmojiGrid(emojis); first=false; }
+  }
+}
+function fillEmojiGrid(emojis){
+  const grid=document.getElementById('emojiGrid'); grid.innerHTML='';
+  emojis.forEach(e=>{
+    const b=document.createElement('button'); b.className='emoji-btn'; b.textContent=e;
+    b.onclick=()=>insertEmoji(e); grid.appendChild(b);
+  });
+}
+function toggleEmoji(){
+  document.getElementById('gifPanel').classList.remove('open');
+  document.getElementById('emojiPanel').classList.toggle('open');
+}
+function insertEmoji(e){
+  const el=document.getElementById('msgInput');
+  const s=el.selectionStart,en=el.selectionEnd;
+  el.value=el.value.slice(0,s)+e+el.value.slice(en);
+  el.selectionStart=el.selectionEnd=s+e.length;
+  el.focus();
+}
+
+// ══════════════════════════════════════════════════════
+// GIF PANEL
+// ══════════════════════════════════════════════════════
+function toggleGif(){
+  document.getElementById('emojiPanel').classList.remove('open');
+  document.getElementById('gifPanel').classList.toggle('open');
+}
+async function searchGifs(){
+  const q=document.getElementById('gifQ').value.trim();
+  const res=document.getElementById('gifResults');
+  if(!q){ res.innerHTML='<div class="gif-msg">Type something to search!</div>'; return; }
+  res.innerHTML='<div class="gif-msg">Searching…</div>';
+  try{
+    const r=await fetch(`https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(q)}&limit=24&rating=pg`);
+    const d=await r.json();
+    if(!d.data?.length){ res.innerHTML='<div class="gif-msg">No results 😢</div>'; return; }
+    res.innerHTML='';
+    d.data.forEach(g=>{
+      const item=document.createElement('div'); item.className='gif-item';
+      item.innerHTML=`<img src="${g.images.fixed_height_small.url}" loading="lazy" alt="gif">`;
+      item.onclick=()=>sendGif(g.images.fixed_height.url);
+      res.appendChild(item);
+    });
+  } catch(e){ res.innerHTML='<div class="gif-msg">Failed to load GIFs.</div>'; }
+}
+document.getElementById('gifQ').addEventListener('keydown',e=>{ if(e.key==='Enter') searchGifs(); });
+
+// ══════════════════════════════════════════════════════
+// MISC UI
+// ══════════════════════════════════════════════════════
+function sysMsg(text){
+  const area=document.getElementById('messagesArea');
+  const d=document.createElement('div'); d.className='msg system';
+  d.innerHTML=`<div class="sys-text">${esc(text)}</div>`;
+  area.appendChild(d); scrollBottom();
+}
+function scrollBottom(){ const a=document.getElementById('messagesArea'); a.scrollTop=a.scrollHeight; }
+function setStatus(t){ document.getElementById('statusBar').textContent=t; document.getElementById('connStatus').textContent='● '+t; }
+function closeAllPanels(){
+  document.getElementById('emojiPanel').classList.remove('open');
+  document.getElementById('gifPanel').classList.remove('open');
+  document.getElementById('editModal').classList.remove('open');
+}
+
+function copyCode(){
+  navigator.clipboard.writeText(roomCode).then(()=>{
+    const b=document.getElementById('copyBtn'); b.textContent='Copied! ✓';
+    setTimeout(()=>b.textContent='Copy Code',2000);
+  }).catch(()=>alert('Room code: '+roomCode));
+}
+
+function onMsgKey(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendMsg(); } }
+function resizeTA(el){ el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,100)+'px'; }
+
+// Close panels on outside click
+document.addEventListener('click',e=>{
+  const ep=document.getElementById('emojiPanel');
+  const gp=document.getElementById('gifPanel');
+  const tb=document.querySelector('.chat-toolbar');
+  const ia=document.querySelector('.chat-input-area');
+  if(ep.classList.contains('open')&&!ep.contains(e.target)&&!(tb&&tb.contains(e.target))&&!(ia&&ia.contains(e.target))) ep.classList.remove('open');
+  if(gp.classList.contains('open')&&!gp.contains(e.target)&&!(tb&&tb.contains(e.target))) gp.classList.remove('open');
+});
+
+// Input listeners
+document.getElementById('usernameInput').addEventListener('keydown',e=>{ if(e.key==='Enter') goToLobby(); });
+document.getElementById('joinCodeIn').addEventListener('input',e=>{ e.target.value=e.target.value.toUpperCase(); });
+document.getElementById('joinCodeIn').addEventListener('keydown',e=>{ if(e.key==='Enter') doJoin(); });
+
+// ══════════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════════
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+function uid20(){ return (uid()+uid()).slice(0,20).padEnd(20,'0'); }
+function randCode(){ return Array.from({length:4},()=>'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[Math.floor(Math.random()*26)]).join(''); }
+function esc(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+// ══════════════════════════════════════════════════════
+// BOOT
+// ══════════════════════════════════════════════════════
+window.onload = initApp;
+</script>
+</body>
+</html>
